@@ -12,7 +12,7 @@ function sky_stat_uninstall() {
   // Remove variables.
   variable_del('sky_stat_count_content_views');
   variable_del('sky_stat_count_content_views_ajax');
-  variable_del('sky_stat_day_timestamp');
+  variable_del('sky_stat_timestamp');
   variable_del('sky_stat_noadmin');
   variable_del('sky_stat_roles');
   variable_del('sky_stat_crawlers');
