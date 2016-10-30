@@ -1,0 +1,12 @@
+name = Sky stat
+description = Simple statistics for node's view.
+package = Sky
+version = VERSION
+core = 7.x
+configure = admin/config/system/sky_stat
+
+; Information added by Drupal.org packaging script on 2016-10-05
+version = "7.51"
+project = "drupal"
+datestamp = "1475694174"
+

@@ -1,0 +1,253 @@
+<?php
+
+/**
+ * @file
+ * Logs and displays access sky_stat for a site.
+ */
+
+/**
+ * Implements hook_help().
+ */
+function sky_stat_help($path, $arg) {
+  switch ($path) {
+    case 'admin/help#sky_stat':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<h3>' . t('Uses') . '</h3>';
+      $output .= '<dl>';
+      $output .= '<dt>' . t('Managing logs') . '</dt>';
+      $output .= '<dd>' . t('To enable collection of sky_stat, the <em>Enable access log</em> checkbox on the <a href="@sky_stat-settings">sky_stat settings page</a> must be checked. The <em>Discard access logs older than</em> setting on the settings page specifies the length of time entries are kept in the log before they are deleted. This setting requires a correctly configured <a href="@cron">cron maintenance task</a> to run.', array(
+          '@sky_stat-settings' => url('admin/config/system/sky_stat'),
+          '@cron' => 'http://drupal.org/cron'
+        )) . '</dd>';
+      $output .= '<dt>' . t('Viewing site usage') . '</dt>';
+
+      $output .= '<dt>' . t('Page view counter') . '</dt>';
+      $output .= '<dd>' . t('The sky_stat module includes a counter for each page that increases whenever the page is viewed. To use the counter, enable <em>Count content views</em> on the <a href="@sky_stat-settings">sky_stat settings page</a>, and set the necessary <a href="@permissions">permissions</a> (<em>View content hits</em>) so that the counter is visible to the users.', array(
+          '@sky_stat-settings' => url('admin/config/system/sky_stat'),
+          '@permissions' => url('admin/people/permissions', array('fragment' => 'module-sky_stat'))
+        )) . '</dd>';
+  }
+}
+
+
+/**
+ * Implements hook_exit().
+ *
+ * Gathers sky_stat for page accesses.
+ */
+function sky_stat_exit() {
+  global $user;
+
+  // When serving cached pages with the 'page_cache_without_database'
+  // configuration, system variables need to be loaded. This is a major
+  // performance decrease for non-database page caches, but with sky_stat
+  // module, it is likely to also have 'sky_stat_enable_access_log' enabled,
+  // in which case we need to bootstrap to the session phase anyway.
+
+  drupal_bootstrap(DRUPAL_BOOTSTRAP_VARIABLES);
+
+  $do_filtering = sky_stat_do_filter();
+
+  if (!$do_filtering) {
+    if (variable_get('sky_stat_count_content_views', 0) && !variable_get('sky_stat_count_content_views_ajax', 0)) {
+      // We are counting content views.
+      if (arg(0) == 'node' && is_numeric(arg(1)) && arg(2) == NULL) {
+        // A node has been viewed, so update the node's counters.
+        db_merge('sky_stat')
+          ->key(array('nid' => arg(1)))
+          ->fields(array(
+            'totalcount' => 1,
+            'yearcount' => 1,
+            'monthcount' => 1,
+            'weekcount' => 1,
+            'daycount' => 1,
+            'timestamp' => REQUEST_TIME,
+          ))
+          ->expression('totalcount', 'totalcount + 1')
+          ->expression('yearcount', 'daycount + 1')
+          ->expression('monthcount', 'daycount + 1')
+          ->expression('weekcount', 'daycount + 1')
+          ->expression('daycount', 'daycount + 1')
+          ->execute();
+      }
+    }
+  }
+
+}
+
+/**
+ * Implements hook_permission().
+ */
+function sky_stat_permission() {
+  return array(
+    'administer sky_stat' => array(
+      'title' => t('Administer sky_stat'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_node_view().
+ */
+function sky_stat_node_view($node, $view_mode) {
+  $do_filtering = sky_stat_do_filter();
+
+  if (!$do_filtering) {
+
+    // Attach Ajax node count sky_stat if configured.
+    if (variable_get('sky_stat_count_content_views', 0) && variable_get('sky_stat_count_content_views_ajax', 0)) {
+      if (!empty($node->nid) && $view_mode == 'full' && node_is_page($node) && empty($node->in_preview)) {
+        $sky_stat = drupal_get_path('module', 'sky_stat') . '/sky_stat.js';
+        $node->content['#attached']['js'][$sky_stat] = array(
+          'scope' => 'footer',
+        );
+        $settings = array(
+          'data' => array('nid' => $node->nid),
+          'url' => url(drupal_get_path('module', 'sky_stat') . '/sky_stat.php')
+        );
+        $node->content['#attached']['js'][] = array(
+          'data' => array('sky_stat' => $settings),
+          'type' => 'setting',
+        );
+      }
+    }
+  }
+
+  if ($view_mode != 'rss') {
+    if (user_access('view post access counter')) {
+      $sky_stat = sky_stat_get($node->nid);
+      if ($sky_stat) {
+        $links['sky_stat_counter']['title'] = format_plural($sky_stat['totalcount'], '1 read', '@count reads');
+        $node->content['links']['sky_stat'] = array(
+          '#theme' => 'links__node__sky_stat',
+          '#links' => $links,
+          '#attributes' => array('class' => array('links', 'inline')),
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function sky_stat_menu() {
+  $items['admin/config/system/sky_stat'] = array(
+    'title' => 'sky_stat',
+    'description' => 'Control details about what and how your site logs access sky_stat.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('sky_stat_settings_form'),
+    'access arguments' => array('administer sky_stat'),
+    'file' => 'sky_stat.admin.inc',
+    'weight' => -15,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_cron().
+ */
+function sky_stat_cron() {
+  if (date('G') == 00) {
+    $sky_stat_timestamp = variable_get('sky_stat_day_timestamp', '');
+
+    if ((REQUEST_TIME - $sky_stat_timestamp) >= 86400) {
+      // Reset day counts.
+      db_update('sky_stat')
+        ->fields(array('daycount' => 0))
+        ->execute();
+      variable_set('sky_stat_day_timestamp', REQUEST_TIME);
+    }
+  }
+}
+
+
+/**
+ * Retrieves a node's "view sky_stat".
+ *
+ * @param $nid
+ *   The node ID.
+ *
+ * @return
+ *   An associative array containing:
+ *   - totalcount: Integer for the total number of times the node has been
+ *     viewed.
+ *   - daycount: Integer for the total number of times the node has been viewed
+ *     "today". For the daycount to be reset, cron must be enabled.
+ *   - timestamp: Integer for the timestamp of when the node was last viewed.
+ */
+function sky_stat_get($nid) {
+
+  if ($nid > 0) {
+    // Retrieve an array with both totalcount and daycount.
+    return db_query('SELECT totalcount, yearcount, monthcount, weekcount, daycount, timestamp FROM {sky_stat} WHERE nid = :nid', array(':nid' => $nid), array('target' => 'slave'))->fetchAssoc();
+  }
+}
+
+
+/**
+ * Implements hook_node_delete().
+ */
+function sky_stat_node_delete($node) {
+  // clean up sky_stat table when node is deleted
+  db_delete('sky_stat')
+    ->condition('nid', $node->nid)
+    ->execute();
+}
+
+
+/**
+ * Implements hook_update_index().
+ */
+function sky_stat_update_index() {
+  variable_set('node_cron_views_scale', 1.0 / max(1, db_query('SELECT MAX(totalcount) FROM {sky_stat}')->fetchField()));
+}
+
+
+function sky_stat_do_filter() {
+  global $user;
+
+  // Who are we ignoring?
+  $filter_admin = variable_get('sky_stat_noadmin', FALSE);
+
+  if ($filter_admin && $user->uid == 1) {
+    return TRUE;
+  }
+
+  if (is_array($user->roles)) {
+    $filtered_roles = variable_get('sky_stat_roles', FALSE);
+
+    if (is_array($filtered_roles) && !empty($filtered_roles)) {
+      foreach ($user->roles as $rid => $role) {
+        if (isset($filtered_roles[$rid])) {
+          return TRUE;
+        }
+      }
+    }
+  }
+
+  $filter_crawlers = variable_get('sky_stat_crawlers', FALSE);
+
+  if ($filter_crawlers && sky_stat_is_crawler()) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+function sky_stat_is_crawler() {
+  if (module_exists('browscap')) {
+    // Cache result.
+    static $crawler = NULL;
+
+    if (is_null($crawler)) {
+      $browser = browscap_get_browser();
+      $crawler = !empty($browser['crawler']);
+    }
+
+    return $crawler;
+  }
+
+  return FALSE;
+}

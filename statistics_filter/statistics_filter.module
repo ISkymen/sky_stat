@@ -1,0 +1,29 @@
+<?php
+
+/**
+ * @file
+ * Filter specified hits out from your statistics.
+ */
+
+/**
+ * Implements hook_help().
+ */
+function statistics_filter_help($path, $arg) {
+  switch ($path) {
+    case 'admin/modules#description':
+      return t('Filter out admin and search engine hits on your site.');
+
+    case 'admin/settings/statistics_filter':
+      return t('To ignore crawlers, you must install and enable the <strong><a href="@link">browscap</a></strong> module.', array('@link' => 'https://drupal.org/project/browscap'));
+  }
+}
+
+
+
+/**
+ * Implements hook_exit().
+ *
+ * Undo what statistics_exit() did for particular users.
+ */
+
+

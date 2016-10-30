@@ -1,0 +1,86 @@
+<?php
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the sky_stat module.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function sky_stat_uninstall() {
+  // Remove variables.
+  variable_del('sky_stat_count_content_views');
+  variable_del('sky_stat_count_content_views_ajax');
+  variable_del('sky_stat_day_timestamp');
+  variable_del('sky_stat_noadmin');
+  variable_del('sky_stat_roles');
+  variable_del('sky_stat_crawlers');
+}
+
+/**
+ * Implements hook_schema().
+ */
+function sky_stat_schema() {
+  $schema['sky_stat'] = array(
+    'description' => 'Access sky_stat for {node}s.',
+    'fields' => array(
+      'nid' => array(
+        'description' => 'The {node}.nid for these sky_stat.',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'totalcount' => array(
+        'description' => 'The total number of times the {node} has been viewed.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'size' => 'big',
+      ),
+      'yearcount' => array(
+        'description' => 'The total number of times the {node} has been viewed this year.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'size' => 'medium',
+      ),
+      'monthcount' => array(
+        'description' => 'The total number of times the {node} has been viewed this month.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'size' => 'medium',
+      ),
+      'weekcount' => array(
+        'description' => 'The total number of times the {node} has been viewed this week.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'size' => 'medium',
+      ),
+      'daycount' => array(
+        'description' => 'The total number of times the {node} has been viewed today.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'size' => 'medium',
+      ),
+      'timestamp' => array(
+        'description' => 'The most recent time the {node} has been viewed.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('nid'),
+  );
+
+  return $schema;
+}
