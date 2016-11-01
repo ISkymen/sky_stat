@@ -149,48 +149,37 @@ function sky_stat_menu() {
  * Implements hook_cron().
  */
 function sky_stat_cron() {
-  if (date('G') == 00) {
-    $sky_stat_timestamp = variable_get('sky_stat_timestamp', '');
-    // Get date.
+  $sky_stat_timestamp = variable_get('sky_stat_timestamp', '');
+  $last_day = date('j', $sky_stat_timestamp) | 0;
+  $day = date('j') | 0;
+
+  if ($day != $last_day) {
+
     $year = date('Y') | 0;
     $month = date('n') | 0;
     $week = date('W') | 0;
-    $day = date('j') | 0;
 
     $last_year = date('Y', $sky_stat_timestamp) | 0;
     $last_month = date('n', $sky_stat_timestamp) | 0;
     $last_week = date('W', $sky_stat_timestamp) | 0;
-    $last_day = date('j', $sky_stat_timestamp) | 0;
 
     $fields = array();
 
-
     if ($year != $last_year) {
-      // Reset year counts.
       $fields['yearcount'] = 0;
     }
 
-    if ($month != $last_month || $year != $last_year) {
-      // Reset month counts.
+    if ($month != $last_month) {
       $fields['monthcount'] = 0;
     }
 
-    if ($week != $last_week || $year != $last_year) {
-      // Reset week counts.
+    if ($week != $last_week) {
       $fields['weekcount'] = 0;
     }
 
-    if ($day != $last_day || $year != $last_year) {
-      // Reset week counts.
-      $fields['daycount'] = 0;
-    }
-
-//    if ((REQUEST_TIME - $sky_stat_timestamp) >= 86400) {
-//      $fields['daycount'] = 0;
-//    }
+    $fields['daycount'] = 0;
 
     if (!empty($fields)) {
-      // Reset year counts.
       db_update('sky_stat')
         ->fields($fields)
         ->execute();
